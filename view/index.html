@@ -3,13 +3,35 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="theme-color" content="#1c1c1a">
+<meta name="theme-color" content="#2D1B69">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Treino">
-<title>Plano de Treino Semanal</title>
+<meta name="apple-mobile-web-app-title" content="Tartaga">
+<meta name="application-name" content="Tartaga">
+<meta name="description" content="Plano semanal de treinos com integração Strava">
 <link rel="manifest" href="manifest.json">
+<link rel="icon" type="image/png" href="favicon.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<title>Tartaga</title>
 <style>
+/* ── Splash screen ── */
+#splash {
+  position: fixed; inset: 0; z-index: 999;
+  background: #2D1B69;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 16px;
+  transition: opacity 0.4s ease;
+}
+#splash img { width: 96px; height: 96px; border-radius: 22px; }
+#splash .splash-name {
+  font-family: -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  font-size: 28px; font-weight: 700; color: #e8e6e0; letter-spacing: -0.5px;
+}
+#splash .splash-sub {
+  font-family: -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  font-size: 13px; color: #A78BFA; letter-spacing: 1px;
+}
+#splash.hide { opacity: 0; pointer-events: none; }
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 :root {
   --bg: #f5f4f0; --surface: #ffffff; --surface2: #eceae4;
@@ -277,12 +299,20 @@ body {
 </style>
 </head>
 <body>
+
+<!-- Splash screen -->
+<div id="splash">
+  <img src="icon-192.png" alt="Tartaga">
+  <div class="splash-name">tartaga</div>
+  <div class="splash-sub">plano semanal de treinos</div>
+</div>
+
 <div class="app" id="app">
 
   <!-- Header -->
   <div class="header">
     <div class="header-left">
-      <span class="header-title">Plano de treino semanal</span>
+      <span class="header-title">tartaga</span>
       <button class="strava-badge" id="stravaBadge" onclick="openStravaModal()">
         <svg viewBox="0 0 24 24"><path d="M15.387 17.944l-2.089-4.116h-3.065L15.387 24l5.15-10.172h-3.066m-7.008-5.599l2.836 5.598h4.172L10.463 0l-7 13.828h4.169"/></svg>
         Conectar Strava
@@ -427,6 +457,14 @@ document.addEventListener('DOMContentLoaded', () => {
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('sw.js').catch(()=>{});
   }
+  // Dismiss splash
+  setTimeout(() => {
+    const splash = document.getElementById('splash');
+    if (splash) {
+      splash.classList.add('hide');
+      setTimeout(() => splash.remove(), 450);
+    }
+  }, 1200);
 });
 
 // ── Theme ─────────────────────────────────────────────────────

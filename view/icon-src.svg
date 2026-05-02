@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- background -->
+  <rect width="512" height="512" rx="112" fill="#2D1B69"/>
+
+  <!-- outer ring track -->
+  <circle cx="256" cy="256" r="168" fill="none" stroke="rgba(255,255,255,0.12)" stroke-width="22"/>
+
+  <!-- ring segments - purple palette -->
+  <path d="M 256 88 A 168 168 0 1 1 137.1 136.1" fill="none" stroke="#A78BFA" stroke-width="22" stroke-linecap="round"/>
+  <path d="M 137.1 136.1 A 168 168 0 0 1 214.4 89.4" fill="none" stroke="#7C3AED" stroke-width="22" stroke-linecap="round"/>
+  <path d="M 214.4 89.4 A 168 168 0 0 1 256 88" fill="none" stroke="#C4B5FD" stroke-width="22" stroke-linecap="round"/>
+
+  <!-- dot at top -->
+  <circle cx="256" cy="88" r="12" fill="#A78BFA"/>
+
+  <!-- inner circle -->
+  <circle cx="256" cy="256" r="112" fill="#5B21B6"/>
+
+  <!-- runner figure -->
+  <!-- head -->
+  <circle cx="256" cy="210" r="18" fill="white"/>
+  <!-- body -->
+  <path d="M 243 225 L 232 272 L 251 262 L 258 288 L 267 262 L 283 272 L 272 225 Z" fill="white"/>
+  <!-- left leg -->
+  <path d="M 232 272 L 216 298" stroke="white" stroke-width="8" stroke-linecap="round" fill="none"/>
+  <!-- right leg -->
+  <path d="M 283 272 L 294 300" stroke="white" stroke-width="8" stroke-linecap="round" fill="none"/>
+  <!-- left leg 2 -->
+  <path d="M 251 262 L 242 298" stroke="white" stroke-width="7" stroke-linecap="round" fill="none"/>
+  <!-- right leg 2 -->
+  <path d="M 258 288 L 265 308" stroke="white" stroke-width="7" stroke-linecap="round" fill="none"/>
+  <!-- left arm -->
+  <path d="M 242 238 L 220 228" stroke="white" stroke-width="7" stroke-linecap="round" fill="none"/>
+  <!-- right arm -->
+  <path d="M 268 238 L 290 242" stroke="white" stroke-width="7" stroke-linecap="round" fill="none"/>
+</svg>
