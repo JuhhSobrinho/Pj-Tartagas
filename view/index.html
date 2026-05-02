@@ -209,6 +209,64 @@ body {
 }
 @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
 
+/* ── Edit mode ── */
+.card-title[contenteditable="true"],
+.card-sub[contenteditable="true"],
+.tag[contenteditable="true"] {
+  outline: none;
+  border-radius: 4px;
+  background: var(--surface2);
+  padding: 1px 4px;
+  cursor: text;
+  min-width: 20px;
+  display: inline-block;
+}
+.day-card.editing { border-color: #1D9E75 !important; opacity: 1 !important; }
+.edit-hint { font-size: 10px; color: var(--text3); margin-top: 6px; display: none; }
+.day-card.editing .edit-hint { display: block; }
+.card-actions { display: flex; align-items: center; justify-content: space-between; margin-top: 8px; }
+.edit-btn {
+  font-size: 10px; color: var(--text3); background: none; border: none;
+  cursor: pointer; padding: 2px 5px; border-radius: 4px;
+}
+.edit-btn:hover { color: var(--text2); background: var(--surface2); }
+
+/* ── Events ── */
+.events-list { margin-top: 8px; display: flex; flex-direction: column; gap: 4px; }
+.event-item {
+  display: flex; align-items: center; gap: 6px;
+  background: var(--surface2); border-radius: 6px;
+  padding: 5px 7px; font-size: 11px;
+  border-left: 2px solid #BA7517;
+}
+.event-item .event-text { flex: 1; color: var(--text1); line-height: 1.3; }
+.event-item .event-time { color: var(--text3); font-size: 10px; white-space: nowrap; }
+.event-item .event-del {
+  background: none; border: none; cursor: pointer;
+  color: var(--text3); font-size: 12px; padding: 0 2px; line-height: 1;
+}
+.event-item .event-del:hover { color: #E24B4A; }
+.add-event-btn {
+  margin-top: 6px; width: 100%; font-size: 10px; color: var(--text3);
+  background: none; border: 0.5px dashed var(--border2); border-radius: 5px;
+  padding: 3px; cursor: pointer; text-align: center;
+}
+.add-event-btn:hover { color: var(--text2); border-color: #BA7517; background: var(--surface2); }
+
+/* ── Event modal ── */
+.event-modal {
+  background: var(--surface); border: 0.5px solid var(--border2);
+  border-radius: 14px; padding: 20px; max-width: 340px; width: 100%;
+}
+.event-modal h2 { font-size: 15px; font-weight: 500; margin-bottom: 14px; }
+.event-modal label { font-size: 12px; color: var(--text2); display: block; margin-bottom: 3px; }
+.event-modal input {
+  width: 100%; padding: 7px 10px; border-radius: 7px;
+  border: 0.5px solid var(--border2); background: var(--surface2);
+  color: var(--text1); font-size: 13px; margin-bottom: 10px; outline: none;
+}
+.event-modal input:focus { border-color: #BA7517; }
+
 /* ── Responsive ── */
 @media (max-width: 600px) {
   .grid-top { grid-template-columns: repeat(2,1fr); }
@@ -281,6 +339,21 @@ body {
 
 </div>
 
+<!-- Event Modal -->
+<div class="modal-backdrop hidden" id="eventModal">
+  <div class="event-modal">
+    <h2 id="eventModalTitle">Adicionar evento</h2>
+    <label>Descrição</label>
+    <input type="text" id="eventDesc" placeholder="Ex: Corrida às 21h com o grupo">
+    <label>Horário (opcional)</label>
+    <input type="time" id="eventTime">
+    <div class="modal-btns">
+      <button class="btn" onclick="closeEventModal()">Cancelar</button>
+      <button class="btn accent" onclick="saveEvent()">Adicionar</button>
+    </div>
+  </div>
+</div>
+
 <!-- Strava OAuth Modal -->
 <div class="modal-backdrop hidden" id="stravaModal">
   <div class="modal">
@@ -334,6 +407,12 @@ let checked = {};
 let stravaActivities = [];
 let chart = null;
 let stravaStep = 1;
+
+// custom edits per day (persisted globally, keyed by day index)
+let customPlan = JSON.parse(localStorage.getItem('wt_custom_plan') || '{}');
+// events: keyed by date string YYYY-MM-DD, array of {desc, time}
+let events = JSON.parse(localStorage.getItem('wt_events') || '{}');
+let pendingEventDayIdx = null;
 
 // ── Init ─────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
@@ -623,9 +702,91 @@ function renderStravaData() {
   });
 }
 
+// ── Inline edit ───────────────────────────────────────────────
+function enterEditMode(cardEl, i, e) {
+  e.stopPropagation();
+  if (cardEl.classList.contains('editing')) return;
+  cardEl.classList.add('editing');
+  cardEl.onclick = null;
+
+  const titleEl = cardEl.querySelector('.card-title');
+  const subEl   = cardEl.querySelector('.card-sub');
+  const tagEl   = cardEl.querySelector('.tag');
+
+  [titleEl, subEl, tagEl].forEach(el => {
+    el.contentEditable = 'true';
+    el.addEventListener('keydown', ev => { if (ev.key === 'Enter') { ev.preventDefault(); el.blur(); } });
+  });
+
+  const saveBtn = cardEl.querySelector('.edit-save-btn');
+  const editBtn = cardEl.querySelector('.edit-btn[title="Editar"]');
+  saveBtn.style.display = 'inline-block';
+  if (editBtn) editBtn.style.display = 'none';
+
+  titleEl.focus();
+
+  saveBtn.onclick = (ev) => {
+    ev.stopPropagation();
+    customPlan[i] = {
+      title: titleEl.innerText.trim() || PLAN[i].title,
+      sub:   subEl.innerText.trim()   || PLAN[i].sub,
+      tag:   tagEl.innerText.trim()   || PLAN[i].tag,
+    };
+    localStorage.setItem('wt_custom_plan', JSON.stringify(customPlan));
+    [titleEl, subEl, tagEl].forEach(el => { el.contentEditable = 'false'; });
+    cardEl.classList.remove('editing');
+    cardEl.onclick = () => toggle(i);
+    render();
+  };
+}
+
+function resetCard(i, e) {
+  e.stopPropagation();
+  delete customPlan[i];
+  localStorage.setItem('wt_custom_plan', JSON.stringify(customPlan));
+  render();
+}
+
+// ── Events ────────────────────────────────────────────────────
+function openEventModal(dayIdx, e) {
+  e.stopPropagation();
+  pendingEventDayIdx = dayIdx;
+  document.getElementById('eventDesc').value = '';
+  document.getElementById('eventTime').value = '';
+  const dates = weekDates(weekOffset);
+  const d = dates[dayIdx].toLocaleDateString('pt-BR', {weekday:'long', day:'2-digit', month:'2-digit'});
+  document.getElementById('eventModalTitle').textContent = `Evento — ${d}`;
+  document.getElementById('eventModal').classList.remove('hidden');
+  setTimeout(() => document.getElementById('eventDesc').focus(), 50);
+}
+function closeEventModal() {
+  document.getElementById('eventModal').classList.add('hidden');
+  pendingEventDayIdx = null;
+}
+function saveEvent() {
+  const desc = document.getElementById('eventDesc').value.trim();
+  if (!desc) { document.getElementById('eventDesc').focus(); return; }
+  const time = document.getElementById('eventTime').value;
+  const dates = weekDates(weekOffset);
+  const key = dates[pendingEventDayIdx].toISOString().slice(0,10);
+  if (!events[key]) events[key] = [];
+  events[key].push({ desc, time });
+  localStorage.setItem('wt_events', JSON.stringify(events));
+  closeEventModal();
+  render();
+}
+function deleteEvent(dateKey, idx, e) {
+  e.stopPropagation();
+  events[dateKey].splice(idx, 1);
+  if (!events[dateKey].length) delete events[dateKey];
+  localStorage.setItem('wt_events', JSON.stringify(events));
+  render();
+}
+
 // ── Render ────────────────────────────────────────────────────
 function render() {
   document.getElementById('weekLbl').textContent = weekLabel(weekOffset);
+  const dates = weekDates(weekOffset);
 
   const rows = [PLAN.slice(0,4), PLAN.slice(4,7)];
   const grids = ['grid1','grid2'];
@@ -636,6 +797,25 @@ function render() {
       const i = ri*4+li;
       const done = !!checked[i];
       const ts = isDark ? p.tagDark : p.tagLight;
+      const custom = customPlan[i] || {};
+      const title = custom.title || p.title;
+      const sub   = custom.sub   || p.sub;
+      const tag   = custom.tag   || p.tag;
+
+      const dateKey = dates[i].toISOString().slice(0,10);
+      const dayEvents = events[dateKey] || [];
+
+      const eventsHTML = dayEvents.length ? `
+        <div class="events-list">
+          ${dayEvents.map((ev,ei) => `
+            <div class="event-item">
+              <span class="event-text">${ev.desc}</span>
+              ${ev.time ? `<span class="event-time">${ev.time}</span>` : ''}
+              <button class="event-del" onclick="deleteEvent('${dateKey}',${ei},event)" title="Remover">×</button>
+            </div>
+          `).join('')}
+        </div>` : '';
+
       const el = document.createElement('div');
       el.className = 'day-card'+(done?' done':'');
       el.innerHTML = `
@@ -643,17 +823,30 @@ function render() {
           <span class="day-name">${p.day}</span>
           <div class="check${done?' on':''}"></div>
         </div>
-        <span class="tag" style="background:${ts.bg};color:${ts.fg}">${p.tag}</span>
-        <div class="card-title">${p.title}</div>
-        <div class="card-sub">${p.sub}</div>
+        <span class="tag" style="background:${ts.bg};color:${ts.fg}">${tag}</span>
+        <div class="card-title">${title}</div>
+        <div class="card-sub">${sub}</div>
         <div class="strava-data"></div>
+        ${eventsHTML}
+        <div class="card-actions">
+          <button class="add-event-btn" onclick="openEventModal(${i},event)">+ evento único</button>
+          <div>
+            <button class="edit-btn edit-save-btn" style="display:none">✓ salvar</button>
+            <button class="edit-btn" onclick="enterEditMode(this.closest('.day-card'),${i},event)" title="Editar">✎</button>
+            ${custom.title||custom.sub||custom.tag ? `<button class="edit-btn" onclick="resetCard(${i},event)" title="Resetar">↺</button>` : ''}
+          </div>
+        </div>
+        <div class="edit-hint">Clique nos textos para editar</div>
       `;
-      el.onclick = ()=>toggle(i);
+      el.onclick = () => toggle(i);
       g.appendChild(el);
+
+      // show save btn only in edit mode (handled by enterEditMode)
+      const saveBtn = el.querySelector('.edit-save-btn');
+      el.querySelector('.day-card .edit-btn[title="Editar"]');
     });
   });
 
-  // Re-inject strava data after re-render
   if (stravaActivities.length) renderStravaData();
 
   const doneN = PLAN.filter((_,i)=>!!checked[i]).length;
