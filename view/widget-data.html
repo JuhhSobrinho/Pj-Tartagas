@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tartaga — Widget Data</title>
+</head>
+<body>
+<script>
+const PLAN = [
+  { day:'Segunda', type:'strength', color:'#378ADD' },
+  { day:'Terça',   type:'run',      color:'#1D9E75' },
+  { day:'Quarta',  type:'strength', color:'#0F9E6E' },
+  { day:'Quinta',  type:'run',      color:'#E24B4A' },
+  { day:'Sexta',   type:'strength', color:'#D4537E' },
+  { day:'Sábado',  type:'run',      color:'#7F77DD' },
+  { day:'Domingo', type:'rest',     color:'#888780' },
+];
+
+const PLAN_FULL = [
+  { day:'Segunda', tag:'Empurrar',      title:'Musculação / Calistenia', sub:'Peito, ombro, tríceps',        type:'strength' },
+  { day:'Terça',   tag:'Zone 2',        title:'Corrida fácil',           sub:'30–45 min, ritmo leve',         type:'run' },
+  { day:'Quarta',  tag:'Puxar',         title:'Musculação / Calistenia', sub:'Costas, bíceps, core',          type:'strength' },
+  { day:'Quinta',  tag:'Intervalos',    title:'Corrida intensa',         sub:'30–40 min, ritmo forte',        type:'run' },
+  { day:'Sexta',   tag:'Pernas',        title:'Musculação / Calistenia', sub:'Agachamento, deadlift, core',   type:'strength' },
+  { day:'Sábado',  tag:'Corrida longa', title:'Corrida longa',           sub:'50–70 min, ritmo confortável',  type:'run' },
+  { day:'Domingo', tag:'Descanso',      title:'Descanso',                sub:'Recuperação ativa ou total',    type:'rest' },
+];
+
+function weekKey(offset) {
+  const d = new Date();
+  d.setDate(d.getDate() - ((d.getDay()+6)%7) + (offset||0)*7);
+  return d.toISOString().slice(0,10);
+}
+
+function weekDates() {
+  const d = new Date(weekKey(0));
+  return Array.from({length:7}, (_,i) => { const x=new Date(d); x.setDate(d.getDate()+i); return x; });
+}
+
+function getData() {
+  const checked = JSON.parse(localStorage.getItem('wt_'+weekKey(0)) || '{}');
+  const customPlan = JSON.parse(localStorage.getItem('wt_custom_plan') || '{}');
+  const events = JSON.parse(localStorage.getItem('wt_events') || '{}');
+
+  const doneCount = PLAN.filter((_,i) => !!checked[i]).length;
+  const runDone   = [1,3,5].filter(i => !!checked[i]).length;
+  const strDone   = [0,2,4].filter(i => !!checked[i]).length;
+
+  // Today's workout
+  const todayIdx = (new Date().getDay() + 6) % 7;
+  const todayPlan = PLAN_FULL[todayIdx];
+  const custom = customPlan[todayIdx] || {};
+  const todayTitle = custom.title || todayPlan.title;
+  const todayTag   = custom.tag   || todayPlan.tag;
+  const todayDone  = !!checked[todayIdx];
+
+  // Today's events
+  const dates = weekDates();
+  const todayKey = dates[todayIdx].toISOString().slice(0,10);
+  const todayEvents = events[todayKey] || [];
+
+  // Km from strava (stored separately if available)
+  const weekKm = parseFloat(localStorage.getItem('wt_week_km') || '0');
+
+  // Days status array for the ring visual
+  const days = PLAN.map((p, i) => ({
+    day: p.day.substring(0,3),
+    done: !!checked[i],
+    color: p.color,
+    type: p.type,
+  }));
+
+  return {
+    week: weekKey(0),
+    done: doneCount,
+    total: 7,
+    percent: Math.round((doneCount/7)*100),
+    runDone,
+    strDone,
+    weekKm: weekKm.toFixed(1),
+    today: {
+      idx: todayIdx,
+      day: todayPlan.day,
+      title: todayTitle,
+      tag: todayTag,
+      done: todayDone,
+      type: todayPlan.type,
+      events: todayEvents,
+    },
+    days,
+  };
+}
+
+// Output as JSON in the page for KWGT to read
+const data = getData();
+document.write('<pre id="data" style="display:none">'+JSON.stringify(data)+'</pre>');
+
+// Also render a nice visual fallback
+const d = data;
+const todayColor = ['#378ADD','#1D9E75','#0F9E6E','#E24B4A','#D4537E','#7F77DD','#888780'][d.today.idx];
+
+document.write(`
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, system-ui, sans-serif; background: #1c1c1a; color: #e8e6e0; padding: 16px; min-height: 100vh; }
+  .widget { background: #262624; border-radius: 20px; padding: 18px; max-width: 360px; margin: 0 auto; border: 0.5px solid rgba(255,255,255,0.08); }
+  .w-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+  .w-logo { font-size: 13px; font-weight: 600; color: #1D9E75; letter-spacing: 0.5px; }
+  .w-week { font-size: 11px; color: #6a6a64; }
+  .w-progress { display: flex; align-items: center; gap: 14px; margin-bottom: 14px; }
+  .w-ring { position: relative; width: 72px; height: 72px; flex-shrink: 0; }
+  .w-ring svg { width: 72px; height: 72px; }
+  .w-ring-center { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+  .w-ring-num { font-size: 20px; font-weight: 600; color: #e8e6e0; line-height: 1; }
+  .w-ring-lbl { font-size: 9px; color: #6a6a64; }
+  .w-stats { flex: 1; display: flex; flex-direction: column; gap: 6px; }
+  .w-stat { display: flex; justify-content: space-between; font-size: 12px; }
+  .w-stat-lbl { color: #a8a89e; }
+  .w-stat-val { font-weight: 500; color: #e8e6e0; }
+  .w-stat-val.green { color: #1D9E75; }
+  .w-divider { height: 0.5px; background: rgba(255,255,255,0.08); margin: 10px 0; }
+  .w-today { display: flex; align-items: flex-start; gap: 10px; }
+  .w-today-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; margin-top: 3px; }
+  .w-today-content { flex: 1; }
+  .w-today-label { font-size: 10px; color: #6a6a64; margin-bottom: 2px; }
+  .w-today-title { font-size: 14px; font-weight: 500; color: #e8e6e0; }
+  .w-today-tag { display: inline-block; font-size: 10px; padding: 1px 7px; border-radius: 20px; margin-top: 4px; background: rgba(255,255,255,0.08); color: #a8a89e; }
+  .w-today-done { font-size: 11px; color: #1D9E75; font-weight: 500; }
+  .w-days { display: flex; gap: 5px; margin-top: 12px; }
+  .w-day { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px; }
+  .w-day-dot { width: 8px; height: 8px; border-radius: 50%; }
+  .w-day-lbl { font-size: 9px; color: #6a6a64; }
+  .w-events { margin-top: 8px; display: flex; flex-direction: column; gap: 4px; }
+  .w-event { font-size: 11px; color: #a8a89e; padding: 4px 8px; background: rgba(186,117,23,0.15); border-left: 2px solid #BA7517; border-radius: 4px; }
+</style>
+<div class="widget">
+  <div class="w-header">
+    <span class="w-logo">tartaga</span>
+    <span class="w-week">${new Date(d.week).toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'})} – ${new Date(new Date(d.week).getTime()+6*86400000).toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'})}</span>
+  </div>
+
+  <div class="w-progress">
+    <div class="w-ring">
+      <svg viewBox="0 0 72 72">
+        <circle cx="36" cy="36" r="28" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="7"/>
+        <circle cx="36" cy="36" r="28" fill="none" stroke="#1D9E75" stroke-width="7"
+          stroke-dasharray="${2*Math.PI*28}" stroke-dashoffset="${2*Math.PI*28*(1-d.done/7)}"
+          stroke-linecap="round" transform="rotate(-90 36 36)"/>
+      </svg>
+      <div class="w-ring-center">
+        <span class="w-ring-num">${d.done}</span>
+        <span class="w-ring-lbl">de 7</span>
+      </div>
+    </div>
+    <div class="w-stats">
+      <div class="w-stat"><span class="w-stat-lbl">Musculação</span><span class="w-stat-val">${d.strDone}/3</span></div>
+      <div class="w-stat"><span class="w-stat-lbl">Corridas</span><span class="w-stat-val">${d.runDone}/3</span></div>
+      <div class="w-stat"><span class="w-stat-lbl">Km na semana</span><span class="w-stat-val green">${d.weekKm > 0 ? d.weekKm+' km' : '—'}</span></div>
+    </div>
+  </div>
+
+  <div class="w-divider"></div>
+
+  <div class="w-today">
+    <div class="w-today-dot" style="background:${todayColor}"></div>
+    <div class="w-today-content">
+      <div class="w-today-label">hoje — ${d.today.day.toLowerCase()}</div>
+      ${d.today.done
+        ? `<div class="w-today-done">✓ Concluído</div>`
+        : `<div class="w-today-title">${d.today.title}</div><span class="w-today-tag">${d.today.tag}</span>`
+      }
+      ${d.today.events.length ? `<div class="w-events">${d.today.events.map(e=>`<div class="w-event">${e.time?e.time+' — ':''}${e.desc}</div>`).join('')}</div>` : ''}
+    </div>
+  </div>
+
+  <div class="w-days">
+    ${d.days.map(day=>`
+      <div class="w-day">
+        <div class="w-day-dot" style="background:${day.done ? day.color : 'rgba(255,255,255,0.12)'}"></div>
+        <span class="w-day-lbl">${day.day}</span>
+      </div>
+    `).join('')}
+  </div>
+</div>
+`);
+</script>
+</body>
+</html>
