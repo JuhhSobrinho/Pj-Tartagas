@@ -323,6 +323,7 @@ body {
       <span class="week-lbl" id="weekLbl"></span>
       <button class="nav-btn" onclick="chgWeek(1)">&#8594;</button>
       <button class="icon-btn" id="themeBtn" onclick="toggleTheme()" title="Alternar tema">☀</button>
+      <button class="icon-btn" onclick="editProgramStart()" title="Definir início do plano (Semana 1)">🎯</button>
       <button class="nav-btn" onclick="syncStrava()" id="syncBtn" style="display:none">↻ Sync</button>
     </div>
   </div>
@@ -419,16 +420,63 @@ body {
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script>
-// ── Config ──────────────────────────────────────────────────
-const PLAN = [
-  { day:'Segunda', tag:'Empurrar',     tagDark:{bg:'#1a3a5c',fg:'#7ab8f5'}, tagLight:{bg:'#ddeeff',fg:'#185FA5'}, title:'Musculação / Calistenia', sub:'Peito, ombro, tríceps',         color:'#378ADD', type:'strength' },
-  { day:'Terça',   tag:'Zone 2',       tagDark:{bg:'#1a3020',fg:'#6ad4a0'}, tagLight:{bg:'#d4f0e4',fg:'#0F6E56'}, title:'Corrida fácil',           sub:'30–45 min, ritmo leve',          color:'#1D9E75', type:'run' },
-  { day:'Quarta',  tag:'Puxar',        tagDark:{bg:'#163526',fg:'#5ec9a5'}, tagLight:{bg:'#c8ede0',fg:'#0a5c44'}, title:'Musculação / Calistenia', sub:'Costas, bíceps, core',           color:'#0F9E6E', type:'strength' },
-  { day:'Quinta',  tag:'Intervalos',   tagDark:{bg:'#3a1a1a',fg:'#f57a7a'}, tagLight:{bg:'#fde0e0',fg:'#A32D2D'}, title:'Corrida intensa',         sub:'30–40 min, ritmo forte',         color:'#E24B4A', type:'run' },
-  { day:'Sexta',   tag:'Pernas',       tagDark:{bg:'#3a1a2e',fg:'#e880b8'}, tagLight:{bg:'#fce0ee',fg:'#8a2050'}, title:'Musculação / Calistenia', sub:'Agachamento, deadlift, core',    color:'#D4537E', type:'strength' },
-  { day:'Sábado',  tag:'Corrida longa',tagDark:{bg:'#2a2040',fg:'#a898f0'}, tagLight:{bg:'#e8e4fc',fg:'#4a3faa'}, title:'Corrida longa',           sub:'50–70 min, ritmo confortável',   color:'#7F77DD', type:'run' },
-  { day:'Domingo', tag:'Descanso',     tagDark:{bg:'#2a2a28',fg:'#a0a09a'}, tagLight:{bg:'#eceae4',fg:'#5a5a56'}, title:'Descanso',                sub:'Recuperação ativa ou total',     color:'#888780', type:'rest' },
-];
+// ── Config: Plano de corrida 5:40 → 5:20 (progressão de 4 semanas) ──
+const FORCA_SUB = 'Passada 3x12 · Agachamento 3x10 · Elevação de quadril 3x12 · Prancha 2x30-40s · Flexão 3x8-12';
+
+const WEEKLY_TARGETS = {
+  1: { leve:'6:00–6:20', tiros:'4:00–4:15', ritmo:'5:50',
+       tirosObs:'1º tiro 4:15 (controlado) → meio 4:05 (estável) → último 3:55–4:00 (forte)',
+       ritmoObs:'5min livre + 5min a 5:55 + 5min a 5:50 + 5min a 5:45' },
+  2: { leve:'5:50–6:10', tiros:'3:50–4:10', ritmo:'5:40–5:50',
+       tirosObs:'1º tiro 4:10 (controlado) → meio 4:00 (estável) → último 3:50–3:55 (forte)',
+       ritmoObs:'5min livre + 5min a 5:50 + 5min a 5:40 + 5min a 5:35' },
+  3: { leve:'5:50', tiros:'3:50–4:00', ritmo:'5:35–5:40',
+       tirosObs:'1º tiro 4:00 (controlado) → meio 3:55 (estável) → último 3:45–3:50 (forte)',
+       ritmoObs:'5min livre + 5min a 5:45 + 5min a 5:37 + 5min a 5:30' },
+  4: { leve:'5:40–6:00', tiros:'3:45–4:00', ritmo:'5:30–5:35',
+       tirosObs:'1º tiro 3:55 (controlado) → meio 3:50 (estável) → último 3:40–3:45 (forte)',
+       ritmoObs:'5min livre + 5min a 5:38 + 5min a 5:30 + 5min a 5:22' },
+};
+
+function buildPlan(programWeek) {
+  const t = WEEKLY_TARGETS[programWeek] || WEEKLY_TARGETS[1];
+  return [
+    { day:'Segunda', tag:'Força',        tagDark:{bg:'#1a3a5c',fg:'#7ab8f5'}, tagLight:{bg:'#ddeeff',fg:'#185FA5'}, title:'Corrida leve + Força',      sub:`Pace leve ${t.leve} · ${FORCA_SUB}`,          color:'#378ADD', type:'strength' },
+    { day:'Terça',   tag:'Descanso',     tagDark:{bg:'#2a2a28',fg:'#a0a09a'}, tagLight:{bg:'#eceae4',fg:'#5a5a56'}, title:'Descanso',                  sub:'Mobilidade e alongamento',                    color:'#888780', type:'rest' },
+    { day:'Quarta',  tag:'Intervalado',  tagDark:{bg:'#3a1a1a',fg:'#f57a7a'}, tagLight:{bg:'#fde0e0',fg:'#A32D2D'}, title:'Intervalado progressivo',   sub:`Tiros ${t.tiros} · ${t.tirosObs}`,            color:'#E24B4A', type:'run' },
+    { day:'Quinta',  tag:'Descanso',     tagDark:{bg:'#2a2a28',fg:'#a0a09a'}, tagLight:{bg:'#eceae4',fg:'#5a5a56'}, title:'Descanso',                  sub:'Descanso total',                              color:'#888780', type:'rest' },
+    { day:'Sexta',   tag:'Força',        tagDark:{bg:'#3a1a2e',fg:'#e880b8'}, tagLight:{bg:'#fce0ee',fg:'#8a2050'}, title:'Corrida leve + Força',      sub:`Pace leve ${t.leve} · ${FORCA_SUB}`,          color:'#D4537E', type:'strength' },
+    { day:'Sábado',  tag:'Ritmo',        tagDark:{bg:'#2a2040',fg:'#a898f0'}, tagLight:{bg:'#e8e4fc',fg:'#4a3faa'}, title:'Ritmo progressivo',         sub:`Alvo final ${t.ritmo} · ${t.ritmoObs}`,       color:'#7F77DD', type:'run' },
+    { day:'Domingo', tag:'Regenerativo', tagDark:{bg:'#163526',fg:'#5ec9a5'}, tagLight:{bg:'#c8ede0',fg:'#0a5c44'}, title:'Corrida regenerativa',      sub:'Bem leve, foco em recuperação',               color:'#1D9E75', type:'run' },
+  ];
+}
+
+// data de início do programa (segunda-feira da Semana 1), editável pelo usuário
+function programStart() {
+  let s = localStorage.getItem('wt_program_start');
+  if (!s) { s = weekKey(0); localStorage.setItem('wt_program_start', s); }
+  return s;
+}
+function rawProgramWeek(offset) {
+  const monday = weekKey(offset);
+  const diffDays = Math.round((new Date(monday) - new Date(programStart())) / 86400000);
+  return Math.floor(diffDays / 7) + 1;
+}
+function programWeekForOffset(offset) {
+  const w = rawProgramWeek(offset);
+  if (w < 1) return null;
+  return Math.min(w, 4);
+}
+function editProgramStart() {
+  const current = programStart();
+  const input = window.prompt('Data de início do plano (segunda-feira da Semana 1). Formato AAAA-MM-DD:', current);
+  if (!input) return;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(input)) { alert('Formato inválido. Use AAAA-MM-DD, ex: 2026-07-27'); return; }
+  localStorage.setItem('wt_program_start', input);
+  render();
+}
+
+let PLAN = buildPlan(1); // recalculado a cada render() para a semana exibida
 
 // ── State ────────────────────────────────────────────────────
 let isDark = localStorage.getItem('wt_theme') === 'dark';
@@ -489,7 +537,12 @@ function weekLabel(offset) {
   const d = new Date(weekKey(offset));
   const e = new Date(d); e.setDate(d.getDate()+6);
   const f = dt => dt.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'});
-  return `${f(d)} – ${f(e)}`;
+  const raw = rawProgramWeek(offset);
+  let pw;
+  if (raw < 1) pw = 'pré-temporada';
+  else if (raw > 4) pw = 'semana 4/4 · manutenção';
+  else pw = `semana ${raw}/4`;
+  return `${f(d)} – ${f(e)} · ${pw}`;
 }
 function weekDates(offset) {
   const d = new Date(weekKey(offset));
@@ -823,6 +876,7 @@ function deleteEvent(dateKey, idx, e) {
 
 // ── Render ────────────────────────────────────────────────────
 function render() {
+  PLAN = buildPlan(programWeekForOffset(weekOffset) || 1);
   document.getElementById('weekLbl').textContent = weekLabel(weekOffset);
   const dates = weekDates(weekOffset);
 
@@ -887,13 +941,17 @@ function render() {
 
   if (stravaActivities.length) renderStravaData();
 
+  const strIdx  = PLAN.reduce((a,p,i)=>{ if (p.type==='strength') a.push(i); return a; }, []);
+  const runIdx  = PLAN.reduce((a,p,i)=>{ if (p.type==='run') a.push(i); return a; }, []);
+  const restIdx = PLAN.reduce((a,p,i)=>{ if (p.type==='rest') a.push(i); return a; }, []);
   const doneN = PLAN.filter((_,i)=>!!checked[i]).length;
-  const strN  = [0,2,4].filter(i=>!!checked[i]).length;
-  const runN  = [1,3,5].filter(i=>!!checked[i]).length;
+  const strN  = strIdx.filter(i=>!!checked[i]).length;
+  const runN  = runIdx.filter(i=>!!checked[i]).length;
+  const restN = restIdx.filter(i=>!!checked[i]).length;
   document.getElementById('sDone').textContent = `${doneN} / 7`;
-  document.getElementById('sStr').textContent  = `${strN} / 3`;
-  document.getElementById('sRun').textContent  = `${runN} / 3`;
-  document.getElementById('sRest').textContent = checked[6] ? 'Aproveitado' : 'Pendente';
+  document.getElementById('sStr').textContent  = `${strN} / ${strIdx.length}`;
+  document.getElementById('sRun').textContent  = `${runN} / ${runIdx.length}`;
+  document.getElementById('sRest').textContent = restIdx.length ? `${restN} / ${restIdx.length} aproveitados` : '—';
 
   drawDonut(doneN);
 }

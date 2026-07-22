@@ -7,31 +7,62 @@
 </head>
 <body>
 <script>
-const PLAN = [
-  { day:'Segunda', type:'strength', color:'#378ADD' },
-  { day:'Terça',   type:'run',      color:'#1D9E75' },
-  { day:'Quarta',  type:'strength', color:'#0F9E6E' },
-  { day:'Quinta',  type:'run',      color:'#E24B4A' },
-  { day:'Sexta',   type:'strength', color:'#D4537E' },
-  { day:'Sábado',  type:'run',      color:'#7F77DD' },
-  { day:'Domingo', type:'rest',     color:'#888780' },
-];
-
-const PLAN_FULL = [
-  { day:'Segunda', tag:'Empurrar',      title:'Musculação / Calistenia', sub:'Peito, ombro, tríceps',        type:'strength' },
-  { day:'Terça',   tag:'Zone 2',        title:'Corrida fácil',           sub:'30–45 min, ritmo leve',         type:'run' },
-  { day:'Quarta',  tag:'Puxar',         title:'Musculação / Calistenia', sub:'Costas, bíceps, core',          type:'strength' },
-  { day:'Quinta',  tag:'Intervalos',    title:'Corrida intensa',         sub:'30–40 min, ritmo forte',        type:'run' },
-  { day:'Sexta',   tag:'Pernas',        title:'Musculação / Calistenia', sub:'Agachamento, deadlift, core',   type:'strength' },
-  { day:'Sábado',  tag:'Corrida longa', title:'Corrida longa',           sub:'50–70 min, ritmo confortável',  type:'run' },
-  { day:'Domingo', tag:'Descanso',      title:'Descanso',                sub:'Recuperação ativa ou total',    type:'rest' },
-];
+// ── Plano de corrida 5:40 → 5:20 (progressão de 4 semanas) ──
+const FORCA_SUB = 'Passada 3x12 · Agachamento 3x10 · Elevação de quadril 3x12 · Prancha 2x30-40s · Flexão 3x8-12';
+const WEEKLY_TARGETS = {
+  1: { leve:'6:00–6:20', tiros:'4:00–4:15', ritmo:'5:50' },
+  2: { leve:'5:50–6:10', tiros:'3:50–4:10', ritmo:'5:40–5:50' },
+  3: { leve:'5:50',      tiros:'3:50–4:00', ritmo:'5:35–5:40' },
+  4: { leve:'5:40–6:00', tiros:'3:45–4:00', ritmo:'5:30–5:35' },
+};
 
 function weekKey(offset) {
   const d = new Date();
   d.setDate(d.getDate() - ((d.getDay()+6)%7) + (offset||0)*7);
   return d.toISOString().slice(0,10);
 }
+
+function programStart() {
+  let s = localStorage.getItem('wt_program_start');
+  if (!s) { s = weekKey(0); localStorage.setItem('wt_program_start', s); }
+  return s;
+}
+function programWeekForOffset(offset) {
+  const monday = weekKey(offset);
+  const diffDays = Math.round((new Date(monday) - new Date(programStart())) / 86400000);
+  const w = Math.floor(diffDays / 7) + 1;
+  return Math.min(Math.max(w, 1), 4);
+}
+
+function buildPlan(pw) {
+  const t = WEEKLY_TARGETS[pw] || WEEKLY_TARGETS[1];
+  return [
+    { day:'Segunda', type:'strength', color:'#378ADD' },
+    { day:'Terça',   type:'rest',     color:'#888780' },
+    { day:'Quarta',  type:'run',      color:'#E24B4A' },
+    { day:'Quinta',  type:'rest',     color:'#888780' },
+    { day:'Sexta',   type:'strength', color:'#D4537E' },
+    { day:'Sábado',  type:'run',      color:'#7F77DD' },
+    { day:'Domingo', type:'run',      color:'#1D9E75' },
+  ];
+}
+
+function buildPlanFull(pw) {
+  const t = WEEKLY_TARGETS[pw] || WEEKLY_TARGETS[1];
+  return [
+    { day:'Segunda', tag:'Força',        title:'Corrida leve + Força',    sub:`Pace leve ${t.leve} · ${FORCA_SUB}`, type:'strength' },
+    { day:'Terça',   tag:'Descanso',     title:'Descanso',                sub:'Mobilidade e alongamento',            type:'rest' },
+    { day:'Quarta',  tag:'Intervalado',  title:'Intervalado progressivo', sub:`Tiros ${t.tiros}`,                    type:'run' },
+    { day:'Quinta',  tag:'Descanso',     title:'Descanso',                sub:'Descanso total',                      type:'rest' },
+    { day:'Sexta',   tag:'Força',        title:'Corrida leve + Força',    sub:`Pace leve ${t.leve} · ${FORCA_SUB}`, type:'strength' },
+    { day:'Sábado',  tag:'Ritmo',        title:'Ritmo progressivo',       sub:`Alvo final ${t.ritmo}`,               type:'run' },
+    { day:'Domingo', tag:'Regenerativo', title:'Corrida regenerativa',    sub:'Bem leve, foco em recuperação',       type:'run' },
+  ];
+}
+
+const programWeek = programWeekForOffset(0);
+const PLAN = buildPlan(programWeek);
+const PLAN_FULL = buildPlanFull(programWeek);
 
 function weekDates() {
   const d = new Date(weekKey(0));
@@ -43,9 +74,13 @@ function getData() {
   const customPlan = JSON.parse(localStorage.getItem('wt_custom_plan') || '{}');
   const events = JSON.parse(localStorage.getItem('wt_events') || '{}');
 
+  const strIdx = PLAN.reduce((a,p,i)=>{ if (p.type==='strength') a.push(i); return a; }, []);
+  const runIdx = PLAN.reduce((a,p,i)=>{ if (p.type==='run') a.push(i); return a; }, []);
   const doneCount = PLAN.filter((_,i) => !!checked[i]).length;
-  const runDone   = [1,3,5].filter(i => !!checked[i]).length;
-  const strDone   = [0,2,4].filter(i => !!checked[i]).length;
+  const runDone   = runIdx.filter(i => !!checked[i]).length;
+  const strDone   = strIdx.filter(i => !!checked[i]).length;
+  const runTotal  = runIdx.length;
+  const strTotal  = strIdx.length;
 
   // Today's workout
   const todayIdx = (new Date().getDay() + 6) % 7;
@@ -78,6 +113,9 @@ function getData() {
     percent: Math.round((doneCount/7)*100),
     runDone,
     strDone,
+    runTotal,
+    strTotal,
+    programWeek,
     weekKm: weekKm.toFixed(1),
     today: {
       idx: todayIdx,
@@ -137,7 +175,7 @@ document.write(`
 <div class="widget">
   <div class="w-header">
     <span class="w-logo">tartaga</span>
-    <span class="w-week">${new Date(d.week).toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'})} – ${new Date(new Date(d.week).getTime()+6*86400000).toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'})}</span>
+    <span class="w-week">semana ${d.programWeek}/4</span>
   </div>
 
   <div class="w-progress">
@@ -154,8 +192,8 @@ document.write(`
       </div>
     </div>
     <div class="w-stats">
-      <div class="w-stat"><span class="w-stat-lbl">Musculação</span><span class="w-stat-val">${d.strDone}/3</span></div>
-      <div class="w-stat"><span class="w-stat-lbl">Corridas</span><span class="w-stat-val">${d.runDone}/3</span></div>
+      <div class="w-stat"><span class="w-stat-lbl">Força</span><span class="w-stat-val">${d.strDone}/${d.strTotal}</span></div>
+      <div class="w-stat"><span class="w-stat-lbl">Corridas</span><span class="w-stat-val">${d.runDone}/${d.runTotal}</span></div>
       <div class="w-stat"><span class="w-stat-lbl">Km na semana</span><span class="w-stat-val green">${d.weekKm > 0 ? d.weekKm+' km' : '—'}</span></div>
     </div>
   </div>

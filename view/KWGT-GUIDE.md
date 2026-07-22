@@ -91,6 +91,7 @@ Esta é a parte que conecta o widget ao seu app.
 | `today_title` | Text | Carregando... |
 | `today_tag` | Text | — |
 | `today_done` | Boolean | false |
+| `program_week` | Number | 1 |
 
 ---
 
@@ -142,8 +143,11 @@ Isso faz a requisição diretamente no KWGT. Substitua `done` pelo campo que qui
 - `today.title` — treino de hoje
 - `today.tag` — tag do treino de hoje
 - `today.done` — se o treino de hoje foi concluído
-- `runDone` — corridas concluídas
-- `strDone` — musculações concluídas
+- `runDone` / `runTotal` — corridas concluídas / total de dias de corrida (3)
+- `strDone` / `strTotal` — dias de força concluídos / total de dias de força (2)
+- `programWeek` — semana atual do plano de corrida (1 a 4, mostra a progressão de pace 5:40 → 5:20)
+
+> A semana do plano (`programWeek`) é calculada a partir da data de início configurada no app (botão 🎯 no cabeçalho). Configure a mesma data lá antes de usar o widget.
 
 ---
 

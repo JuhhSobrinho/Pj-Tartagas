@@ -44,6 +44,7 @@ Coloque os 3 arquivos em qualquer host estático:
 
 ## Funcionalidades
 
+- 🎯 Plano de corrida progressivo de 4 semanas (meta 5:40 → 5:20 min/km), com pace, treino e força ajustados automaticamente a cada semana a partir de uma data de início configurável (botão 🎯 no cabeçalho)
 - ✅ Checklist semanal de treinos
 - 🍩 Gráfico rosquinha de progresso
 - 🔶 Sincronização automática com Strava
