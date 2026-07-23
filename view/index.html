@@ -237,6 +237,23 @@ body {
 .modal-hint { font-size: 11px; color: var(--text3); margin-top: 10px; }
 .modal-hint a { color: var(--accent); }
 
+/* ── Week Pattern Modal ── */
+.modal.wide { max-width: 620px; max-height: 85vh; overflow-y: auto; }
+.wp-row {
+  display: grid; grid-template-columns: 76px 90px 1fr 1fr; gap: 6px;
+  align-items: center; margin-bottom: 8px;
+}
+.wp-day { font-size: 12px; font-weight: 500; color: var(--text2); }
+.wp-row input, .wp-row select {
+  width: 100%; padding: 7px 8px; border-radius: 7px;
+  border: 0.5px solid var(--border2); background: var(--surface2);
+  color: var(--text1); font-size: 12px; outline: none; margin-bottom: 0;
+}
+.wp-row input:focus, .wp-row select:focus { border-color: #1D9E75; }
+@media (max-width: 600px) {
+  .wp-row { grid-template-columns: 1fr; gap: 4px; margin-bottom: 14px; padding-bottom: 10px; border-bottom: 0.5px solid var(--border); }
+}
+
 /* ── Edit mode ── */
 .card-title[contenteditable="true"],
 .card-sub[contenteditable="true"],
@@ -324,6 +341,7 @@ body {
         <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" stroke="white" stroke-width="2.5" stroke-linecap="round" fill="none"/></svg>
         Registrar corrida
       </button>
+      <button class="nav-btn" onclick="openWeekPatternModal()" title="Definir o padrão semanal (repete nas próximas semanas)">📋 Padrão da semana</button>
     </div>
     <div class="header-right">
       <button class="nav-btn" onclick="chgWeek(-1)">&#8592;</button>
@@ -442,6 +460,22 @@ body {
       <button class="btn accent" onclick="saveActivity()">Salvar</button>
     </div>
     <p class="modal-hint" id="activityHint">Os dados ficam salvos apenas no seu navegador (localStorage).</p>
+  </div>
+</div>
+
+<!-- Week Pattern Modal — define o padrão de cada dia, que se repete nas próximas semanas -->
+<div class="modal-backdrop hidden" id="weekPatternModal">
+  <div class="modal wide">
+    <h2>Padrão da semana</h2>
+    <p>Defina o que acontece em cada dia. Dias que você <strong>não alterar</strong> continuam seguindo a progressão automática do plano (4 semanas). Dias que você editar ficam do seu jeito, repetindo em todas as próximas semanas.</p>
+    <div id="weekPatternRows"></div>
+    <div class="modal-btns" style="justify-content:space-between">
+      <button class="btn" onclick="resetWeekPattern()">Restaurar padrão original</button>
+      <div style="display:flex;gap:8px">
+        <button class="btn" onclick="closeWeekPatternModal()">Cancelar</button>
+        <button class="btn accent" onclick="saveWeekPattern()">Salvar</button>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -1019,6 +1053,52 @@ function resetCard(i, e) {
   e.stopPropagation();
   delete customPlan[i];
   localStorage.setItem('wt_custom_plan', JSON.stringify(customPlan));
+  render();
+}
+
+// ── Padrão da semana (repete nas próximas semanas) ─────────────
+function openWeekPatternModal() {
+  const rowsEl = document.getElementById('weekPatternRows');
+  rowsEl.innerHTML = PLAN.map((p, i) => {
+    const custom = customPlan[i] || {};
+    const tag   = custom.tag   || p.tag;
+    const title = custom.title || p.title;
+    const sub   = custom.sub   || p.sub;
+    return `
+      <div class="wp-row">
+        <div class="wp-day">${p.day}</div>
+        <input type="text" id="wp_tag_${i}" value="${tag.replace(/"/g,'&quot;')}" placeholder="Tag">
+        <input type="text" id="wp_title_${i}" value="${title.replace(/"/g,'&quot;')}" placeholder="Título">
+        <input type="text" id="wp_sub_${i}" value="${sub.replace(/"/g,'&quot;')}" placeholder="Detalhes">
+      </div>`;
+  }).join('');
+  document.getElementById('weekPatternModal').classList.remove('hidden');
+}
+function closeWeekPatternModal() {
+  document.getElementById('weekPatternModal').classList.add('hidden');
+}
+function saveWeekPattern() {
+  PLAN.forEach((p, i) => {
+    const tag   = document.getElementById(`wp_tag_${i}`).value.trim()   || p.tag;
+    const title = document.getElementById(`wp_title_${i}`).value.trim() || p.title;
+    const sub   = document.getElementById(`wp_sub_${i}`).value.trim()   || p.sub;
+    const isDefault = tag === p.tag && title === p.title && sub === p.sub;
+    if (isDefault) {
+      // sem alteração: continua seguindo a progressão automática do plano
+      delete customPlan[i];
+    } else {
+      customPlan[i] = { tag, title, sub };
+    }
+  });
+  localStorage.setItem('wt_custom_plan', JSON.stringify(customPlan));
+  closeWeekPatternModal();
+  render();
+}
+function resetWeekPattern() {
+  if (!confirm('Restaurar o padrão original de todos os dias da semana? Isso apaga as personalizações salvas.')) return;
+  customPlan = {};
+  localStorage.setItem('wt_custom_plan', JSON.stringify(customPlan));
+  closeWeekPatternModal();
   render();
 }
 
