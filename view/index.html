@@ -421,7 +421,7 @@ body {
     <ol class="modal-steps">
       <li>
         <span class="step-num">1</span>
-        <span>Acesse <a href="https://www.strava.com/settings/api" target="_blank" style="color:var(--strava)">strava.com/settings/api</a> e crie um app (Authorization Callback Domain: <code style="font-size:11px;background:var(--surface2);padding:1px 4px;border-radius:3px">localhost</code>)</span>
+        <span>Acesse <a href="https://www.strava.com/settings/api" target="_blank" style="color:var(--strava)">strava.com/settings/api</a> e crie um app (Authorization Callback Domain: <code style="font-size:11px;background:var(--surface2);padding:1px 4px;border-radius:3px">juhhsobrinho.github.io</code> — use o domínio onde o site está hospedado, sem <code style="font-size:11px;background:var(--surface2);padding:1px 4px;border-radius:3px">https://</code> nem caminho)</span>
       </li>
       <li>
         <span class="step-num">2</span>
@@ -435,8 +435,8 @@ body {
     <input type="text" id="clientId" placeholder="Client ID (ex: 12345)">
     <input type="password" id="clientSecret" placeholder="Client Secret">
     <div id="codeSection" style="display:none">
-      <p style="font-size:12px;color:var(--text2);margin:8px 0 4px">Cole o código da URL de retorno (parâmetro <code style="background:var(--surface2);padding:1px 4px;border-radius:3px">?code=</code>):</p>
-      <input type="text" id="authCode" placeholder="Cole o código aqui">
+      <p style="font-size:12px;color:var(--text2);margin:8px 0 4px">Cole a <strong>URL inteira</strong> da página de retorno do Strava (ou só o valor de <code style="background:var(--surface2);padding:1px 4px;border-radius:3px">?code=</code>). Na tela de autorização, deixe marcada a opção "Ver dados sobre suas atividades":</p>
+      <input type="text" id="authCode" placeholder="Cole a URL de retorno ou o código aqui">
     </div>
     <div class="modal-btns">
       <button class="btn" onclick="closeStravaModal()">Cancelar</button>
@@ -642,12 +642,25 @@ function handleStravaAuth() {
   }
 
   if (stravaStep === 2) {
-    const code = document.getElementById('authCode').value.trim();
-    if (!code) { alert('Cole o código de autorização'); return; }
-    exchangeToken(clientId, clientSecret, code);
+    const raw = document.getElementById('authCode').value.trim();
+    if (!raw) { alert('Cole o código (ou a URL de retorno)'); return; }
+    const { code, scope } = parseStravaReturn(raw);
+    if (!code) { alert('Não encontrei o código na URL colada. Cole a URL inteira ou só o valor de ?code='); return; }
+    exchangeToken(clientId, clientSecret, code, scope);
   }
 }
-async function exchangeToken(clientId, clientSecret, code) {
+function parseStravaReturn(raw) {
+  // Aceita tanto a URL de retorno completa quanto só o código colado
+  raw = raw.trim();
+  try {
+    const u = new URL(raw);
+    return { code: u.searchParams.get('code'), scope: u.searchParams.get('scope') || '' };
+  } catch(e) {
+    return { code: raw, scope: '' };
+  }
+}
+
+async function exchangeToken(clientId, clientSecret, code, scope) {
   try {
     const r = await fetch('https://www.strava.com/oauth/token', {
       method: 'POST',
@@ -658,24 +671,51 @@ async function exchangeToken(clientId, clientSecret, code) {
     if (data.access_token) {
       localStorage.setItem('strava_access_token', data.access_token);
       if (data.refresh_token) localStorage.setItem('strava_refresh_token', data.refresh_token);
+      if (scope) localStorage.setItem('strava_scope', scope);
+
+      const grantedScope = scope || localStorage.getItem('strava_scope') || '';
+      if (grantedScope && !grantedScope.includes('activity:read')) {
+        showModalError(
+          'Você autorizou o app, mas negou o acesso às atividades (permissão concedida: "' + grantedScope + '"). ' +
+          'Clique em "Autorizar ↗" de novo e, na tela do Strava, marque a caixa "Ver dados sobre suas atividades" antes de confirmar.'
+        );
+        stravaStep = 1;
+        document.getElementById('codeSection').style.display = 'none';
+        document.getElementById('stravaAuthBtn').textContent = 'Autorizar ↗';
+        return;
+      }
+
       updateStravaBadge(true);
       closeStravaModal();
       syncStrava();
     } else {
-      alert('Erro ao obter token. Verifique as credenciais e o código.');
+      showModalError('Erro ao obter token. Verifique o Client ID/Secret e se colou o código (ou a URL) certos.');
     }
   } catch(e) {
-    alert('Erro de conexão com Strava. Tente novamente.');
+    showModalError('Erro de conexão com Strava. Tente novamente.');
   }
 }
+
+function showModalError(msg) {
+  let el = document.getElementById('stravaModalError');
+  if (!el) {
+    el = document.createElement('p');
+    el.id = 'stravaModalError';
+    el.style.cssText = 'font-size:12px;color:#E24B4A;background:rgba(226,75,74,0.1);border:0.5px solid rgba(226,75,74,0.3);border-radius:8px;padding:8px 10px;margin:8px 0 0';
+    document.querySelector('#stravaModal .modal-btns').insertAdjacentElement('beforebegin', el);
+  }
+  el.textContent = msg;
+}
+
 function checkStravaCallback() {
   const params = new URLSearchParams(window.location.search);
   const code = params.get('code');
+  const scope = params.get('scope') || '';
   if (code) {
     history.replaceState({}, '', window.location.pathname);
     const clientId = localStorage.getItem('strava_client_id');
     const clientSecret = localStorage.getItem('strava_client_secret');
-    if (clientId && clientSecret) exchangeToken(clientId, clientSecret, code);
+    if (clientId && clientSecret) exchangeToken(clientId, clientSecret, code, scope);
   }
 }
 function updateStravaBadge(connected) {
