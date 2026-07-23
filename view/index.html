@@ -402,19 +402,19 @@ body {
   </div>
 
   <!-- Histórico de atividades registradas -->
-  <div class="history-section" id="history" style="display:none">
+  <div class="history-section" id="history">
     <div class="history-title">Atividades da semana</div>
     <div class="activity-list" id="actList"></div>
   </div>
 
   <!-- Monthly stats -->
-  <div class="history-section" id="monthlySection" style="display:none">
+  <div class="history-section" id="monthlySection">
     <div class="history-title">Estatísticas do mês</div>
     <div class="monthly-grid" id="monthlyGrid"></div>
   </div>
 
   <!-- Evolution charts (pace + km per week) -->
-  <div class="history-section" id="evolutionSection" style="display:none">
+  <div class="history-section" id="evolutionSection">
     <div class="history-title-row">
       <div class="history-title" id="evoTitle">Evolução — últimas 8 semanas</div>
       <button class="nav-btn" id="evoToggleBtn" onclick="toggleEvoRange()">Ver última semana</button>
@@ -834,7 +834,6 @@ function computeMonthlyStats() {
   const now = new Date();
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
   const runs = allActivities.filter(a => ['Run','TrailRun'].includes(a.type) && new Date(a.start_date_local) >= monthStart);
-  if (!runs.length) { document.getElementById('monthlySection').style.display = 'none'; return; }
   const totalKm = runs.reduce((s,a) => s + a.distance/1000, 0);
   const totalTime = runs.reduce((s,a) => s + a.moving_time, 0);
   const totalElev = runs.reduce((s,a) => s + (a.total_elevation_gain||0), 0);
@@ -843,7 +842,6 @@ function computeMonthlyStats() {
     <div class="monthly-card"><div class="monthly-val">${Math.floor(totalTime/3600)}h${String(Math.floor((totalTime%3600)/60)).padStart(2,'0')}</div><div class="monthly-lbl">tempo correndo</div></div>
     <div class="monthly-card"><div class="monthly-val">${Math.round(totalElev)}</div><div class="monthly-lbl">m de ganho</div></div>
   `;
-  document.getElementById('monthlySection').style.display = 'block';
 }
 
 // ── Evolution charts: pace médio e km por semana (últimas 8 semanas ou só a última) ──
@@ -906,13 +904,8 @@ function computeEvolutionStats() {
   const kmData = weekKeys.map(k => +buckets[k].km.toFixed(1));
   const paceData = weekKeys.map(k => buckets[k].km > 0.3 ? +((buckets[k].time/60)/buckets[k].km).toFixed(2) : null);
 
-  if (kmData.some(v => v > 0)) {
-    renderEvolutionCharts(labels, kmData, paceData);
-    lastEvoData = { labels, kmData, paceData };
-  } else {
-    document.getElementById('evolutionSection').style.display = 'none';
-    lastEvoData = null;
-  }
+  renderEvolutionCharts(labels, kmData, paceData);
+  lastEvoData = { labels, kmData, paceData };
 }
 
 function paceTooltip(v) {
@@ -1008,9 +1001,7 @@ function renderEvolutionCharts(labels, kmData, paceData) {
 
 function renderActivityData() {
   const dates = weekDates(weekOffset);
-  const histEl = document.getElementById('history');
   const listEl = document.getElementById('actList');
-  histEl.style.display = activities.length ? 'block' : 'none';
 
   // Km da semana para o resumo
   const weekKm = activities.filter(a=>['Run','TrailRun'].includes(a.type))
@@ -1020,6 +1011,9 @@ function renderActivityData() {
     try { localStorage.setItem('wt_week_km', weekKm.toFixed(1)); } catch(e) {}
   }
 
+  if (!activities.length) {
+    listEl.innerHTML = `<p style="font-size:12px;color:var(--text3)">Nenhuma corrida registrada nesta semana ainda.</p>`;
+  } else {
   listEl.innerHTML = activities.map(act => {
     const km = (act.distance/1000).toFixed(2);
     const pace = act.type !== 'Other' ? formatPace(act.moving_time, act.distance) : null;
@@ -1043,6 +1037,7 @@ function renderActivityData() {
         </div>
       </div>`;
   }).join('');
+  }
 
   // Injeta os dados registrados nos cards do dia correspondente
   const grids = [document.getElementById('grid1'), document.getElementById('grid2')];
