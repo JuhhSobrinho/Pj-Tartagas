@@ -1,4 +1,4 @@
-const CACHE = 'treino-v1';
+const CACHE = 'treino-v2';
 const ASSETS = [
   './',
   './index.html',
@@ -21,7 +21,6 @@ self.addEventListener('activate', e => {
 });
 
 self.addEventListener('fetch', e => {
-  if (e.request.url.includes('strava.com')) return;
   e.respondWith(
     caches.match(e.request).then(cached => cached || fetch(e.request).then(res => {
       if (res.ok && e.request.method === 'GET') {

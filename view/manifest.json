@@ -1,7 +1,7 @@
 {
   "name": "Tartaga",
   "short_name": "Tartaga",
-  "description": "Plano semanal de treinos com integração Strava",
+  "description": "Plano semanal de treinos com registro manual de corridas",
   "start_url": "./index.html",
   "display": "standalone",
   "background_color": "#2D1B69",
