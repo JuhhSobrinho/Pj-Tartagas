@@ -254,6 +254,26 @@ body {
   .wp-row { grid-template-columns: 1fr; gap: 4px; margin-bottom: 14px; padding-bottom: 10px; border-bottom: 0.5px solid var(--border); }
 }
 
+/* ── Four-week Plan Editor ── */
+.toggle-row {
+  display: flex; align-items: center; gap: 10px; cursor: pointer;
+  font-size: 13px; color: var(--text1); margin-bottom: 14px;
+  padding: 10px 12px; background: var(--surface2); border-radius: 9px;
+}
+.toggle-row input[type="checkbox"] { width: 16px; height: 16px; accent-color: #1D9E75; cursor: pointer; }
+.fw-week-block {
+  background: var(--surface2); border-radius: 10px; padding: 12px;
+  margin-bottom: 10px;
+}
+.fw-week-title { font-size: 12px; font-weight: 600; color: var(--text1); margin-bottom: 8px; }
+.fw-week-block label { font-size: 11px; color: var(--text2); display: block; margin-bottom: 2px; }
+.fw-week-block input {
+  width: 100%; padding: 6px 8px; border-radius: 6px;
+  border: 0.5px solid var(--border2); background: var(--surface);
+  color: var(--text1); font-size: 12px; margin-bottom: 8px; outline: none;
+}
+.fw-week-block input:focus { border-color: #1D9E75; }
+
 /* ── Edit mode ── */
 .card-title[contenteditable="true"],
 .card-sub[contenteditable="true"],
@@ -349,6 +369,7 @@ body {
       <button class="nav-btn" onclick="chgWeek(1)">&#8594;</button>
       <button class="icon-btn" id="themeBtn" onclick="toggleTheme()" title="Alternar tema">☀</button>
       <button class="icon-btn" onclick="editProgramStart()" title="Definir início do plano (Semana 1)">🎯</button>
+      <button class="icon-btn" onclick="openFourWeekPlanModal()" title="Editar o plano de 4 semanas (ativar/desativar e personalizar)">✎</button>
     </div>
   </div>
 
@@ -467,13 +488,40 @@ body {
 <div class="modal-backdrop hidden" id="weekPatternModal">
   <div class="modal wide">
     <h2>Padrão da semana</h2>
-    <p>Defina o que acontece em cada dia. Dias que você <strong>não alterar</strong> continuam seguindo a progressão automática do plano (4 semanas). Dias que você editar ficam do seu jeito, repetindo em todas as próximas semanas.</p>
+    <p>Defina o que acontece em cada dia. <span id="weekPatternPlanNote">Dias que você <strong>não alterar</strong> continuam seguindo a progressão automática do plano (4 semanas). Dias que você editar ficam do seu jeito, repetindo em todas as próximas semanas.</span></p>
     <div id="weekPatternRows"></div>
     <div class="modal-btns" style="justify-content:space-between">
       <button class="btn" onclick="resetWeekPattern()">Restaurar padrão original</button>
       <div style="display:flex;gap:8px">
         <button class="btn" onclick="closeWeekPatternModal()">Cancelar</button>
         <button class="btn accent" onclick="saveWeekPattern()">Salvar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Four-week Plan Editor: liga/desliga a progressão automática e permite editar os alvos de cada semana -->
+<div class="modal-backdrop hidden" id="fourWeekPlanModal">
+  <div class="modal wide">
+    <h2>Plano de 4 semanas</h2>
+    <p>Quando ativado, o app segue a progressão de pace ao longo de 4 semanas a partir da data de início (🎯). Quando desativado, todo dia usa sempre o "Padrão da semana", sem progressão. Terça, quinta e domingo não mudam de semana pra semana, por isso não aparecem aqui — só os dias abaixo variam.</p>
+
+    <label class="toggle-row">
+      <input type="checkbox" id="planEnabledToggle" onchange="updateFourWeekFieldsVisibility()">
+      <span>Ativar progressão automática de 4 semanas</span>
+    </label>
+
+    <p class="modal-hint" id="fourWeekPlanDisabledHint" style="display:none">
+      Com a progressão desativada, os treinos de corrida ficam sempre com os valores da Semana 1 (editáveis abaixo), a não ser que você personalize um dia específico em "Padrão da semana".
+    </p>
+
+    <div id="fourWeekPlanFields"></div>
+
+    <div class="modal-btns" style="justify-content:space-between">
+      <button class="btn" onclick="resetFourWeekPlan()">Restaurar valores padrão</button>
+      <div style="display:flex;gap:8px">
+        <button class="btn" onclick="closeFourWeekPlanModal()">Cancelar</button>
+        <button class="btn accent" onclick="saveFourWeekPlan()">Salvar</button>
       </div>
     </div>
   </div>
@@ -499,8 +547,22 @@ const WEEKLY_TARGETS = {
        ritmoObs:'5min livre + 5min a 5:38 + 5min a 5:30 + 5min a 5:22' },
 };
 
+// Progressão de 4 semanas: pode ser desativada (aí o app sempre usa o "Padrão da semana",
+// sem progressão) e os alvos de cada semana podem ser personalizados.
+let planEnabled = localStorage.getItem('wt_plan_enabled') !== 'false';
+let customWeeklyTargets = JSON.parse(localStorage.getItem('wt_weekly_targets_custom') || '{}');
+function getWeeklyTargets(programWeek) {
+  const base = WEEKLY_TARGETS[programWeek] || WEEKLY_TARGETS[1];
+  const custom = customWeeklyTargets[programWeek];
+  return custom ? { ...base, ...custom } : base;
+}
+function effectiveProgramWeek(offset) {
+  if (!planEnabled) return 1;
+  return programWeekForOffset(offset) || 1;
+}
+
 function buildPlan(programWeek) {
-  const t = WEEKLY_TARGETS[programWeek] || WEEKLY_TARGETS[1];
+  const t = getWeeklyTargets(programWeek);
   return [
     { day:'Segunda', tag:'Força',        tagDark:{bg:'#1a3a5c',fg:'#7ab8f5'}, tagLight:{bg:'#ddeeff',fg:'#185FA5'}, title:'Corrida leve + Força',      sub:`Pace leve ${t.leve} · ${FORCA_SUB}`,          color:'#378ADD', type:'strength' },
     { day:'Terça',   tag:'Descanso',     tagDark:{bg:'#2a2a28',fg:'#a0a09a'}, tagLight:{bg:'#eceae4',fg:'#5a5a56'}, title:'Descanso',                  sub:'Mobilidade e alongamento',                    color:'#888780', type:'rest' },
@@ -597,6 +659,7 @@ function weekLabel(offset) {
   const d = new Date(weekKey(offset));
   const e = new Date(d); e.setDate(d.getDate()+6);
   const f = dt => dt.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'});
+  if (!planEnabled) return `${f(d)} – ${f(e)} · padrão semanal`;
   const raw = rawProgramWeek(offset);
   let pw;
   if (raw < 1) pw = 'pré-temporada';
@@ -820,7 +883,7 @@ function computeEvolutionStats() {
   const weekKeysSorted = Object.keys(buckets).sort();
   weekKeysSorted.forEach((k) => {
     const offsetFromToday = Math.round((new Date(k) - mondayThis) / (7*86400000));
-    buckets[k].programWeek = programWeekForOffset(offsetFromToday);
+    buckets[k].programWeek = planEnabled ? programWeekForOffset(offsetFromToday) : null;
   });
 
   runs.forEach(a => {
@@ -1058,6 +1121,9 @@ function resetCard(i, e) {
 
 // ── Padrão da semana (repete nas próximas semanas) ─────────────
 function openWeekPatternModal() {
+  document.getElementById('weekPatternPlanNote').textContent = planEnabled
+    ? 'Dias que você não alterar continuam seguindo a progressão automática do plano (4 semanas). Dias que você editar ficam do seu jeito, repetindo em todas as próximas semanas.'
+    : 'O plano de 4 semanas está desativado — todo dia repete esse padrão toda semana, sem progressão de pace.';
   const rowsEl = document.getElementById('weekPatternRows');
   rowsEl.innerHTML = PLAN.map((p, i) => {
     const custom = customPlan[i] || {};
@@ -1102,6 +1168,69 @@ function resetWeekPattern() {
   render();
 }
 
+// ── Plano de 4 semanas: ativar/desativar e personalizar os alvos ──
+function fourWeekFieldsHTML() {
+  return [1,2,3,4].map(w => {
+    const t = getWeeklyTargets(w);
+    return `
+      <div class="fw-week-block">
+        <div class="fw-week-title">Semana ${w}</div>
+        <label>Pace leve — Segunda e Sexta (leve + força)</label>
+        <input type="text" id="fw_leve_${w}" value="${(t.leve||'').replace(/"/g,'&quot;')}">
+        <label>Tiros — Quarta (intervalado)</label>
+        <input type="text" id="fw_tiros_${w}" value="${(t.tiros||'').replace(/"/g,'&quot;')}">
+        <label>Observação dos tiros — Quarta (intervalado)</label>
+        <input type="text" id="fw_tirosObs_${w}" value="${(t.tirosObs||'').replace(/"/g,'&quot;')}">
+        <label>Ritmo (alvo final) — Sábado (ritmo progressivo)</label>
+        <input type="text" id="fw_ritmo_${w}" value="${(t.ritmo||'').replace(/"/g,'&quot;')}">
+        <label>Observação do ritmo — Sábado (ritmo progressivo)</label>
+        <input type="text" id="fw_ritmoObs_${w}" value="${(t.ritmoObs||'').replace(/"/g,'&quot;')}">
+      </div>`;
+  }).join('');
+}
+function openFourWeekPlanModal() {
+  document.getElementById('planEnabledToggle').checked = planEnabled;
+  document.getElementById('fourWeekPlanFields').innerHTML = fourWeekFieldsHTML();
+  updateFourWeekFieldsVisibility();
+  document.getElementById('fourWeekPlanModal').classList.remove('hidden');
+}
+function closeFourWeekPlanModal() {
+  document.getElementById('fourWeekPlanModal').classList.add('hidden');
+}
+function updateFourWeekFieldsVisibility() {
+  const on = document.getElementById('planEnabledToggle').checked;
+  document.getElementById('fourWeekPlanFields').style.display = on ? 'block' : 'none';
+  document.getElementById('fourWeekPlanDisabledHint').style.display = on ? 'none' : 'block';
+}
+function saveFourWeekPlan() {
+  planEnabled = document.getElementById('planEnabledToggle').checked;
+  localStorage.setItem('wt_plan_enabled', planEnabled ? 'true' : 'false');
+
+  const newCustom = {};
+  [1,2,3,4].forEach(w => {
+    const base = WEEKLY_TARGETS[w];
+    const leve     = document.getElementById(`fw_leve_${w}`).value.trim()     || base.leve;
+    const tiros    = document.getElementById(`fw_tiros_${w}`).value.trim()    || base.tiros;
+    const tirosObs = document.getElementById(`fw_tirosObs_${w}`).value.trim() || base.tirosObs;
+    const ritmo    = document.getElementById(`fw_ritmo_${w}`).value.trim()    || base.ritmo;
+    const ritmoObs = document.getElementById(`fw_ritmoObs_${w}`).value.trim() || base.ritmoObs;
+    const isDefault = leve===base.leve && tiros===base.tiros && tirosObs===base.tirosObs && ritmo===base.ritmo && ritmoObs===base.ritmoObs;
+    if (!isDefault) newCustom[w] = { leve, tiros, tirosObs, ritmo, ritmoObs };
+  });
+  customWeeklyTargets = newCustom;
+  localStorage.setItem('wt_weekly_targets_custom', JSON.stringify(customWeeklyTargets));
+
+  closeFourWeekPlanModal();
+  render();
+  refreshActivities();
+}
+function resetFourWeekPlan() {
+  if (!confirm('Restaurar os valores padrão do plano de 4 semanas? Isso apaga as personalizações dos alvos de cada semana (a ativação/desativação não muda).')) return;
+  customWeeklyTargets = {};
+  localStorage.setItem('wt_weekly_targets_custom', '{}');
+  document.getElementById('fourWeekPlanFields').innerHTML = fourWeekFieldsHTML();
+}
+
 // ── Events ────────────────────────────────────────────────────
 function openEventModal(dayIdx, e) {
   e.stopPropagation();
@@ -1140,7 +1269,7 @@ function deleteEvent(dateKey, idx, e) {
 
 // ── Render ────────────────────────────────────────────────────
 function render() {
-  PLAN = buildPlan(programWeekForOffset(weekOffset) || 1);
+  PLAN = buildPlan(effectiveProgramWeek(weekOffset));
   document.getElementById('weekLbl').textContent = weekLabel(weekOffset);
   const dates = weekDates(weekOffset);
 
